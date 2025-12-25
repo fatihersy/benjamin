@@ -1,0 +1,143 @@
+{
+    "window.zoomLevel": 0,
+    "files.autoSave": "onFocusChange",
+    "workbench.colorTheme": "Oro Theme",
+    "workbench.editor.showTabs": "multiple",
+    "workbench.statusBar.visible": true,
+    "workbench.colorCustomizations": {
+        "[Monokai]": {
+            "editor.selectionHighlightBackground": "#c03a2bf1",
+            "editor.background": "#0e1316",
+            "editor.lineHighlightBackground": "#50404031",
+            "sideBar.background": "#161d22",
+            "sideBarSectionHeader.foreground": "#d2dae2",
+            "sideBar.foreground": "#d2dae2",
+            "tab.activeBackground": "#4d565e",
+            "tab.inactiveBackground": "#161d22",
+            "tab.activeForeground": "#d2dae2",
+            "tab.inactiveForeground": "#8f959b",
+            "titleBar.activeBackground": "#0e1316",
+            "sideBar.border": "#ff010100",
+            "sideBarSectionHeader.background" : "#0e1316",
+            "activityBar.background" : "#0e1316",
+        }
+    },
+    "editor.minimap.enabled": false,
+    "editor.lineNumbers": "on",
+    "editor.cursorStyle": "block",
+    "editor.tabCompletion": "on",
+    "editor.parameterHints.enabled": true,
+    "editor.inlayHints.enabled": "off",
+    "editor.hover.enabled": "off",
+    //"editor.hover.delay": 200,
+    "editor.cursorSmoothCaretAnimation" : "off",
+    "editor.cursorBlinking": "smooth",
+    "editor.overviewRulerBorder": false,
+    "editor.showFoldingControls" :"mouseover",
+    "editor.renderWhitespace": "none",
+    "editor.quickSuggestionsDelay": 0,
+    "editor.fontFamily": "miosevka regular",
+    "editor.fontSize": 15,
+    "editor.fontLigatures": true,
+    "editor.bracketPairColorization.enabled": true,
+    "editor.guides.bracketPairs": "active",
+    "editor.guides.bracketPairsHorizontal": "active",
+    "editor.quickSuggestions": {
+        "other": "on",
+        "comments": "on",
+        "strings": "on"
+    },
+    "editor.tokenColorCustomizations": {
+        "[Monokai]": {
+            "textMateRules": [
+                //{
+                //    "scope": "entity.name.function",
+                //    "settings": {
+                //        "foreground": "#55488d"
+                //    }
+                //},
+                //{
+                //    "scope": "variable.other.enummember",
+                //    "settings": {
+                //        "foreground": "#d3caff"
+                //    }
+                //},
+            ]
+        }
+    },
+    "terminal.integrated.fontFamily": "miosevka",
+    "terminal.integrated.defaultProfile.windows": "pwsh7",
+    "terminal.integrated.defaultProfile.linux": "fish",
+    "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell"
+        },
+        "Command Prompt": {
+            "path": [
+                "${env:windir}\\Sysnative\\cmd.exe",
+                "${env:windir}\\System32\\cmd.exe"
+            ],
+            "args": [],
+            "icon": "terminal-cmd"
+        },
+        "Git Bash": {
+            "source": "Git Bash"
+        },
+        "pwsh7": {
+            "path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+        }
+    },
+    "todohighlight.isEnable": true,
+    "todohighlight.keywords": [
+        {
+            "text": "TODO:",
+            "color": "red",
+            "backgroundColor": "rgba(0,0,0,0)"
+        },
+        {
+            "text": "HACK:",
+            "color": "#ff6600",
+            "backgroundColor": "rgba(0,0,0,0)"
+        },
+        {
+            "text": "NOTE:",
+            "color": "green",
+            "backgroundColor": "rgba(0,0,0,0)"
+        },
+        {
+            "text": "LABEL:",
+            "color": "#B5B8BE",
+            "backgroundColor": "rgba(0,0,0,0)"
+        },
+        {
+            "text": "INFO:",
+            "color": "#ffd32a",
+            "backgroundColor": "rgba(0,0,0,0)"
+        },
+        {
+            "text": "WARN:",
+            "color": "#ffa801",
+            "backgroundColor": "rgba(0,0,0,0)"
+        }
+    ],
+    "todohighlight.include": [
+        "**/*.h",
+        "**/*.c"
+    ],
+    "todohighlight.defaultStyle": {
+        "color": "red",
+        "backgroundColor": "#ffab00",
+        "overviewRulerColor": "rgba(0,0,0,0)",
+        "isWholeLine": false,
+    },
+    "clangd.arguments": [
+        "--header-insertion=never",
+        "--function-arg-placeholders=0",
+    ],
+    "clangd.fallbackFlags": [
+        "-std=c++23"
+    ],
+    "clangd.path": "clangd",
+    "C_Cpp.default.compilerPath": "cl.exe",
+}

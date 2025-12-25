@@ -1,0 +1,9 @@
+{
+	"recommendations": [
+		"ms-vscode.hexeditor",
+		"deimonn.oro-theme",
+		"christian-kohler.path-intellisense",
+		"wayou.vscode-todo-highlight",
+		"usernamehw.errorlens"
+	]
+}
