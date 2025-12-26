@@ -9,6 +9,7 @@ public:
     ~Camera();
 
     void update();
+    void set_aspect_ratio(float aspect_ratio);
 
     DirectX::XMMATRIX get_view_matrix() const { return view_matrix; }
     DirectX::XMMATRIX get_projection_matrix() const { return projection_matrix; }
@@ -27,4 +28,8 @@ private:
     float mouse_sensitivity;
     POINT last_mouse_pos;
     bool first_mouse;
+
+    float fov;
+    float near_plane;
+    float far_plane;
 };

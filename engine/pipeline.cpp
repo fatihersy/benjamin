@@ -38,12 +38,15 @@ Pipeline::Pipeline(
     rasterizer_desc.CullMode = D3D12_CULL_MODE_NONE;
     pso_desc.RasterizerState = rasterizer_desc;
     pso_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    pso_desc.DepthStencilState.DepthEnable = FALSE;
+    pso_desc.DepthStencilState.DepthEnable = TRUE;
+    pso_desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+    pso_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
     pso_desc.DepthStencilState.StencilEnable = FALSE;
     pso_desc.SampleMask = UINT_MAX;
     pso_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     pso_desc.NumRenderTargets = 1;
     pso_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    pso_desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
     pso_desc.SampleDesc.Count = 1;
 
     if (FAILED(device->CreateGraphicsPipelineState(&pso_desc, IID_PPV_ARGS(&pipeline_state)))) {

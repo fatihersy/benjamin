@@ -3,10 +3,15 @@
 using namespace DirectX;
 
 Camera::Camera(float fov, float aspect_ratio, float near_plane, float far_plane, float initial_z)
-    : position(0.0f, 0.0f, initial_z), yaw(XM_PI), pitch(0.0f), mouse_sensitivity(0.002f), first_mouse(true) {
+    : position(0.0f, 0.0f, initial_z), yaw(XM_PI), pitch(0.0f), mouse_sensitivity(0.002f), first_mouse(true),
+      fov(fov), near_plane(near_plane), far_plane(far_plane) {
     projection_matrix = XMMatrixPerspectiveFovLH(fov, aspect_ratio, near_plane, far_plane);
     GetCursorPos(&last_mouse_pos);
     update_view_matrix();
+}
+
+void Camera::set_aspect_ratio(float aspect_ratio) {
+    projection_matrix = XMMatrixPerspectiveFovLH(fov, aspect_ratio, near_plane, far_plane);
 }
 
 Camera::~Camera() {}
