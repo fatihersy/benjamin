@@ -7,6 +7,8 @@
 #include <memory>
 #include <vector>
 #include "pipeline.hpp"
+#include "camera.hpp"
+#include "buffer.hpp"
 
 class Renderer {
 public:
@@ -46,4 +48,8 @@ private:
     std::unique_ptr<Pipeline> pipeline;
     Microsoft::WRL::ComPtr<ID3D12Resource> vertex_buffer;
     D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view;
+
+    std::unique_ptr<Camera> camera;
+    std::unique_ptr<Buffer> camera_buffer;
+    Microsoft::WRL::ComPtr<ID3D12Resource> vertex_upload_heap;
 };

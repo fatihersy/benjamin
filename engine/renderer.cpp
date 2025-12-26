@@ -12,12 +12,24 @@ struct Vertex {
 
 Renderer::Renderer(UINT width, UINT height, HWND hwnd)
     : width(width), height(height), hwnd(hwnd), frame_index(0), fence_value(0) {
-    
+
     viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
     scissor_rect = CD3DX12_RECT(0, 0, static_cast<LONG>(width), static_cast<LONG>(height));
 
     init_pipeline();
     load_assets();
+
+    ID3D12CommandList* command_lists[] = { command_list.Get() };
+    command_queue->ExecuteCommandLists(1, command_lists);
+    command_queue->Signal(fence.Get(), 1);
+    fence_value = 1;
+    if (fence->GetCompletedValue() < 1) {
+        fence->SetEventOnCompletion(1, fence_event);
+        WaitForSingleObject(fence_event, INFINITE);
+    }
+
+    camera = std::make_unique<Camera>(XM_PIDIV2, static_cast<float>(width) / height, 0.1f, 100.0f, 5.0f);
+    camera_buffer = std::make_unique<Buffer>(device.Get(), 256, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
 }
 
 Renderer::~Renderer() {
@@ -100,9 +112,14 @@ void Renderer::init_pipeline() {
 }
 
 void Renderer::load_assets() {
+    D3D12_ROOT_PARAMETER root_param = {};
+    root_param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    root_param.Descriptor.ShaderRegister = 0;
+    root_param.Descriptor.RegisterSpace = 0;
+
     D3D12_ROOT_SIGNATURE_DESC root_signature_desc = {};
-    root_signature_desc.NumParameters = 0;
-    root_signature_desc.pParameters = nullptr;
+    root_signature_desc.NumParameters = 1;
+    root_signature_desc.pParameters = &root_param;
     root_signature_desc.NumStaticSamplers = 0;
     root_signature_desc.pStaticSamplers = nullptr;
     root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
@@ -112,12 +129,11 @@ void Renderer::load_assets() {
         { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
 
-    pipeline = std::make_unique<Pipeline>(device.Get(), L"shaders.hlsl", input_layout, root_signature_desc);
+    pipeline = std::make_unique<Pipeline>(device.Get(), L"C:\\Users\\supre\\Repository\\Repositories\\benjamin\\engine\\shaders.hlsl", input_layout, root_signature_desc);
 
     if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocator.Get(), pipeline->get_pipeline_state(), IID_PPV_ARGS(&command_list)))) {
         throw std::runtime_error("Failed to create command list.");
     }
-    command_list->Close();
 
     Vertex triangle_vertices[] = {
         { { 0.0f, 0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
@@ -127,26 +143,56 @@ void Renderer::load_assets() {
 
     const UINT vertex_buffer_size = sizeof(triangle_vertices);
 
-    auto heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto buffer_desc = CD3DX12_RESOURCE_DESC::Buffer(vertex_buffer_size);
+    D3D12_HEAP_PROPERTIES heap_props_default = {};
+    heap_props_default.Type = D3D12_HEAP_TYPE_DEFAULT;
 
-    if (FAILED(device->CreateCommittedResource(
-        &heap_props,
-        D3D12_HEAP_FLAG_NONE,
-        &buffer_desc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&vertex_buffer)))) {
+    D3D12_RESOURCE_DESC buffer_desc = {};
+    buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    buffer_desc.Width = vertex_buffer_size;
+    buffer_desc.Height = 1;
+    buffer_desc.DepthOrArraySize = 1;
+    buffer_desc.MipLevels = 1;
+    buffer_desc.SampleDesc.Count = 1;
+    buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+    if (FAILED(device->CreateCommittedResource(&heap_props_default, D3D12_HEAP_FLAG_NONE, &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&vertex_buffer)))) {
         throw std::runtime_error("Failed to create vertex buffer.");
+    }
+
+    D3D12_HEAP_PROPERTIES heap_props_upload = {};
+    heap_props_upload.Type = D3D12_HEAP_TYPE_UPLOAD;
+
+    D3D12_RESOURCE_DESC upload_buffer_desc = {};
+    upload_buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    upload_buffer_desc.Width = vertex_buffer_size;
+    upload_buffer_desc.Height = 1;
+    upload_buffer_desc.DepthOrArraySize = 1;
+    upload_buffer_desc.MipLevels = 1;
+    upload_buffer_desc.SampleDesc.Count = 1;
+    upload_buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+    if (FAILED(device->CreateCommittedResource(&heap_props_upload, D3D12_HEAP_FLAG_NONE, &upload_buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertex_upload_heap)))) {
+        throw std::runtime_error("Failed to create vertex upload heap.");
     }
 
     UINT8* p_vertex_data_begin;
     CD3DX12_RANGE read_range(0, 0);
-    if (FAILED(vertex_buffer->Map(0, &read_range, reinterpret_cast<void**>(&p_vertex_data_begin)))) {
-        throw std::runtime_error("Failed to map vertex buffer.");
+    if (FAILED(vertex_upload_heap->Map(0, &read_range, reinterpret_cast<void**>(&p_vertex_data_begin)))) {
+        throw std::runtime_error("Failed to map vertex upload heap.");
     }
     memcpy(p_vertex_data_begin, triangle_vertices, sizeof(triangle_vertices));
-    vertex_buffer->Unmap(0, nullptr);
+    vertex_upload_heap->Unmap(0, nullptr);
+
+    command_list->CopyBufferRegion(vertex_buffer.Get(), 0, vertex_upload_heap.Get(), 0, vertex_buffer_size);
+
+    D3D12_RESOURCE_BARRIER barrier = {};
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Transition.pResource = vertex_buffer.Get();
+    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    command_list->ResourceBarrier(1, &barrier);
+    command_list->Close();
 
     vertex_buffer_view.BufferLocation = vertex_buffer->GetGPUVirtualAddress();
     vertex_buffer_view.StrideInBytes = sizeof(Vertex);
@@ -155,7 +201,7 @@ void Renderer::load_assets() {
     if (FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)))) {
         throw std::runtime_error("Failed to create fence.");
     }
-    fence_value = 1;
+    fence_value = 0;
     fence_event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 }
 
@@ -167,7 +213,18 @@ void Renderer::populate_command_list() {
         throw std::runtime_error("Failed to reset command list.");
     }
 
+    // Update camera matrices
+    camera->update();
+    DirectX::XMMATRIX view = camera->get_view_matrix();
+    DirectX::XMMATRIX proj = camera->get_projection_matrix();
+
+    void* mapped = camera_buffer->map();
+    memcpy(mapped, &view, sizeof(XMMATRIX));
+    memcpy((char*)mapped + sizeof(XMMATRIX), &proj, sizeof(XMMATRIX));
+    camera_buffer->unmap();
+
     command_list->SetGraphicsRootSignature(pipeline->get_root_signature());
+    command_list->SetGraphicsRootConstantBufferView(0, camera_buffer->get_resource()->GetGPUVirtualAddress());
     command_list->RSSetViewports(1, &viewport);
     command_list->RSSetScissorRects(1, &scissor_rect);
 

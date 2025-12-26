@@ -34,7 +34,9 @@ Pipeline::Pipeline(
     pso_desc.pRootSignature = root_signature.Get();
     pso_desc.VS = { vertex_shader->GetBufferPointer(), vertex_shader->GetBufferSize() };
     pso_desc.PS = { pixel_shader->GetBufferPointer(), pixel_shader->GetBufferSize() };
-    pso_desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    CD3DX12_RASTERIZER_DESC rasterizer_desc = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    rasterizer_desc.CullMode = D3D12_CULL_MODE_NONE;
+    pso_desc.RasterizerState = rasterizer_desc;
     pso_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     pso_desc.DepthStencilState.DepthEnable = FALSE;
     pso_desc.DepthStencilState.StencilEnable = FALSE;
