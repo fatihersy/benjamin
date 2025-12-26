@@ -140,4 +140,5 @@
     ],
     "clangd.path": "clangd",
     "C_Cpp.default.compilerPath": "cl.exe",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json"
 }

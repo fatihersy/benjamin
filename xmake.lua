@@ -2,8 +2,9 @@ set_project("benjamin")
 set_version("0.0.1")
 
 add_rules("mode.debug", "mode.release")
+add_rules("plugin.compile_commands.autoupdate")
+
 set_languages("c++23")
-set_policy("build.c++.modules", true)
 
 target("core_modules")
     set_kind("static")
@@ -12,10 +13,14 @@ target("core_modules")
 
 target("gameplay")
     set_kind("shared")
+    set_policy("build.c++.modules", true)
     add_deps("core_modules")
     add_files("gameplay/api.cpp")
 
 target("engine")
     set_kind("binary")
-    add_deps("core_modules")
-    add_files("engine/entry.cpp")
+    set_policy("build.c++.modules", false)
+    add_files("engine/entry.cpp", "engine/window.cpp", "engine/renderer.cpp", "engine/pipeline.cpp", "engine/buffer.cpp", "engine/camera.cpp")
+    add_headerfiles("engine/*.hpp")
+    add_includedirs("libs")
+    add_syslinks("d3d12", "dxgi", "d3dcompiler", "user32")

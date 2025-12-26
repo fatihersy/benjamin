@@ -1,11 +1,16 @@
-#include <windows.h>
-#include <print>
-
-using sum_fn = int(*)(int, int);
+#include "window.hpp"
+#include <stdexcept>
 
 int main() {
-    auto dll = LoadLibraryA("gameplay.dll");
-    auto sum = (sum_fn)GetProcAddress(dll, "gameplay_sum");
-
-    std::print("Hello = {}\n", sum(2, 3));
+    try {
+        Window window(800, 600, L"DirectX 12 Hello Triangle");
+        window.run();
+    } catch (const std::exception& e) {
+        MessageBoxA(nullptr, e.what(), "Error", MB_OK | MB_ICONERROR);
+        return 1;
+    }
+    return 0;
 }
+
+
+
