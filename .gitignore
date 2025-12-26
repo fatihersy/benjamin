@@ -1,4 +1,5 @@
 .zed/
 build/
 .xmake/
+assets/
 compile_commands.json

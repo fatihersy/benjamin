@@ -7,7 +7,7 @@ using Microsoft::WRL::ComPtr;
 
 struct Vertex {
     XMFLOAT3 position;
-    XMFLOAT4 color;
+    XMFLOAT2 uv;
 };
 
 Renderer::Renderer(UINT width, UINT height, HWND hwnd)
@@ -122,21 +122,49 @@ void Renderer::init_pipeline() {
 }
 
 void Renderer::load_assets() {
-    D3D12_ROOT_PARAMETER root_param = {};
-    root_param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    root_param.Descriptor.ShaderRegister = 0;
-    root_param.Descriptor.RegisterSpace = 0;
+    D3D12_DESCRIPTOR_RANGE srv_range = {};
+    srv_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srv_range.NumDescriptors = 1;
+    srv_range.BaseShaderRegister = 0;
+    srv_range.RegisterSpace = 0;
+    srv_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER root_params[2] = {};
+    root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    root_params[0].Descriptor.ShaderRegister = 0;
+    root_params[0].Descriptor.RegisterSpace = 0;
+    root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+    root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    root_params[1].DescriptorTable.NumDescriptorRanges = 1;
+    root_params[1].DescriptorTable.pDescriptorRanges = &srv_range;
+    root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    D3D12_STATIC_SAMPLER_DESC sampler_desc = {};
+    sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler_desc.MipLODBias = 0;
+    sampler_desc.MaxAnisotropy = 1;
+    sampler_desc.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    sampler_desc.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+    sampler_desc.MinLOD = 0.0f;
+    sampler_desc.MaxLOD = D3D12_FLOAT32_MAX;
+    sampler_desc.ShaderRegister = 0;
+    sampler_desc.RegisterSpace = 0;
+    sampler_desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     D3D12_ROOT_SIGNATURE_DESC root_signature_desc = {};
-    root_signature_desc.NumParameters = 1;
-    root_signature_desc.pParameters = &root_param;
-    root_signature_desc.NumStaticSamplers = 0;
-    root_signature_desc.pStaticSamplers = nullptr;
+    root_signature_desc.NumParameters = 2;
+    root_signature_desc.pParameters = root_params;
+    root_signature_desc.NumStaticSamplers = 1;
+    root_signature_desc.pStaticSamplers = &sampler_desc;
     root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> input_layout = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
 
     pipeline = std::make_unique<Pipeline>(device.Get(), L"C:\\Users\\supre\\Repository\\Repositories\\benjamin\\engine\\shaders.hlsl", input_layout, root_signature_desc);
@@ -147,30 +175,50 @@ void Renderer::load_assets() {
 
     Vertex cube_vertices[] = {
         // Front face (z = 0.5)
-        { { -0.5f, -0.5f,  0.5f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-        { {  0.5f, -0.5f,  0.5f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-        { {  0.5f,  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
-        { { -0.5f,  0.5f,  0.5f }, { 1.0f, 1.0f, 0.0f, 1.0f } },
+        { { -0.5f, -0.5f,  0.5f }, { 0.0f, 1.0f } },
+        { {  0.5f, -0.5f,  0.5f }, { 1.0f, 1.0f } },
+        { {  0.5f,  0.5f,  0.5f }, { 1.0f, 0.0f } },
+        { { -0.5f,  0.5f,  0.5f }, { 0.0f, 0.0f } },
         // Back face (z = -0.5)
-        { { -0.5f, -0.5f, -0.5f }, { 1.0f, 0.0f, 1.0f, 1.0f } },
-        { {  0.5f, -0.5f, -0.5f }, { 0.0f, 1.0f, 1.0f, 1.0f } },
-        { {  0.5f,  0.5f, -0.5f }, { 1.0f, 1.0f, 1.0f, 1.0f } },
-        { { -0.5f,  0.5f, -0.5f }, { 0.5f, 0.5f, 0.5f, 1.0f } }
+        { {  0.5f, -0.5f, -0.5f }, { 0.0f, 1.0f } },
+        { { -0.5f, -0.5f, -0.5f }, { 1.0f, 1.0f } },
+        { { -0.5f,  0.5f, -0.5f }, { 1.0f, 0.0f } },
+        { {  0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f } },
+        // Left face (x = -0.5)
+        { { -0.5f, -0.5f, -0.5f }, { 0.0f, 1.0f } },
+        { { -0.5f, -0.5f,  0.5f }, { 1.0f, 1.0f } },
+        { { -0.5f,  0.5f,  0.5f }, { 1.0f, 0.0f } },
+        { { -0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f } },
+        // Right face (x = 0.5)
+        { {  0.5f, -0.5f,  0.5f }, { 0.0f, 1.0f } },
+        { {  0.5f, -0.5f, -0.5f }, { 1.0f, 1.0f } },
+        { {  0.5f,  0.5f, -0.5f }, { 1.0f, 0.0f } },
+        { {  0.5f,  0.5f,  0.5f }, { 0.0f, 0.0f } },
+        // Top face (y = 0.5)
+        { { -0.5f,  0.5f,  0.5f }, { 0.0f, 1.0f } },
+        { {  0.5f,  0.5f,  0.5f }, { 1.0f, 1.0f } },
+        { {  0.5f,  0.5f, -0.5f }, { 1.0f, 0.0f } },
+        { { -0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f } },
+        // Bottom face (y = -0.5)
+        { { -0.5f, -0.5f, -0.5f }, { 0.0f, 1.0f } },
+        { {  0.5f, -0.5f, -0.5f }, { 1.0f, 1.0f } },
+        { {  0.5f, -0.5f,  0.5f }, { 1.0f, 0.0f } },
+        { { -0.5f, -0.5f,  0.5f }, { 0.0f, 0.0f } }
     };
 
     UINT16 cube_indices[] = {
         // Front
         0, 2, 1, 0, 3, 2,
         // Back
-        4, 5, 6, 4, 6, 7,
+        4, 6, 5, 4, 7, 6,
         // Left
-        4, 7, 3, 4, 3, 0,
+        8, 10, 9, 8, 11, 10,
         // Right
-        1, 2, 6, 1, 6, 5,
+        12, 14, 13, 12, 15, 14,
         // Top
-        3, 7, 6, 3, 6, 2,
+        16, 18, 17, 16, 19, 18,
         // Bottom
-        4, 0, 1, 4, 1, 5
+        20, 22, 21, 20, 23, 22
     };
 
     index_count = _countof(cube_indices);
@@ -256,6 +304,27 @@ void Renderer::load_assets() {
     barriers[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
     command_list->ResourceBarrier(2, barriers);
+
+    // Create SRV heap
+    D3D12_DESCRIPTOR_HEAP_DESC srv_heap_desc = {};
+    srv_heap_desc.NumDescriptors = 1;
+    srv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    srv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    if (FAILED(device->CreateDescriptorHeap(&srv_heap_desc, IID_PPV_ARGS(&srv_heap)))) {
+        throw std::runtime_error("Failed to create SRV heap.");
+    }
+
+    // Load texture
+    cube_texture = std::make_unique<Texture>(device.Get(), command_list.Get(), "C:/Users/supre/Repository/Repositories/benjamin/assets/grass.png");
+
+    // Create SRV for texture
+    D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+    srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srv_desc.Texture2D.MipLevels = 1;
+    device->CreateShaderResourceView(cube_texture->get_resource(), &srv_desc, srv_heap->GetCPUDescriptorHandleForHeapStart());
+
     command_list->Close();
 
     vertex_buffer_view.BufferLocation = vertex_buffer->GetGPUVirtualAddress();
@@ -296,7 +365,13 @@ void Renderer::populate_command_list() {
     camera_buffer->unmap();
 
     command_list->SetGraphicsRootSignature(pipeline->get_root_signature());
+
+    ID3D12DescriptorHeap* heaps[] = { srv_heap.Get() };
+    command_list->SetDescriptorHeaps(1, heaps);
+
     command_list->SetGraphicsRootConstantBufferView(0, camera_buffer->get_resource()->GetGPUVirtualAddress());
+    command_list->SetGraphicsRootDescriptorTable(1, srv_heap->GetGPUDescriptorHandleForHeapStart());
+
     command_list->RSSetViewports(1, &viewport);
     command_list->RSSetScissorRects(1, &scissor_rect);
 

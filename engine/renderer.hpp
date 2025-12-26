@@ -9,6 +9,7 @@
 #include "pipeline.hpp"
 #include "camera.hpp"
 #include "buffer.hpp"
+#include "texture.hpp"
 
 class Renderer {
 public:
@@ -60,6 +61,9 @@ private:
     std::unique_ptr<Buffer> camera_buffer;
     Microsoft::WRL::ComPtr<ID3D12Resource> vertex_upload_heap;
     Microsoft::WRL::ComPtr<ID3D12Resource> index_upload_heap;
+
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> srv_heap;
+    std::unique_ptr<Texture> cube_texture;
 
     float rotation_angle;
 };
