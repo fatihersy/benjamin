@@ -25,6 +25,9 @@ private:
     void load_assets();
     void begin_frame();
     void populate_command_list();
+    void populate_depth_pass();
+    void populate_render_pass();
+    void transition_resource(ID3D12GraphicsCommandList* cmd_list, ID3D12Resource* resource, D3D12_RESOURCE_STATES& current_state, D3D12_RESOURCE_STATES new_state);
     void end_frame();
     void wait_for_frame(UINT frame_idx);
     void create_depth_buffer();
@@ -42,7 +45,9 @@ private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> dsv_heap;
     UINT rtv_descriptor_size;
     Microsoft::WRL::ComPtr<ID3D12Resource> render_targets[frame_count];
+    D3D12_RESOURCE_STATES render_target_states[frame_count];
     Microsoft::WRL::ComPtr<ID3D12Resource> depth_stencil_buffer;
+    D3D12_RESOURCE_STATES depth_buffer_state;
 
     // Per-frame resources
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> command_allocators[frame_count];
@@ -52,6 +57,9 @@ private:
     UINT64 fence_counter;
     HANDLE fence_event;
     UINT frame_index;
+    
+    // Resource lifetime tracking
+    bool command_list_in_use[frame_count];
 
     D3D12_VIEWPORT viewport;
     D3D12_RECT scissor_rect;

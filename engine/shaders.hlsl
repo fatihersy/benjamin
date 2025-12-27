@@ -22,7 +22,9 @@ struct PSInput {
 
 PSInput VSMain(float3 position : POSITION, float3 normal : NORMAL, float2 uv : TEXCOORD) {
     PSInput result;
-    result.position = mul(float4(position, 1.0f), mul(modelMatrix, mul(viewMatrix, projectionMatrix)));
+    float4 worldPos = mul(float4(position, 1.0f), modelMatrix);
+    float4 viewPos = mul(worldPos, viewMatrix);
+    result.position = mul(viewPos, projectionMatrix);
     result.normal = mul(normal, (float3x3)modelMatrix);
     result.uv = uv;
     return result;

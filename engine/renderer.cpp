@@ -19,12 +19,15 @@ Renderer::Renderer(UINT width, UINT height, HWND hwnd)
     viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
     scissor_rect = CD3DX12_RECT(0, 0, static_cast<LONG>(width), static_cast<LONG>(height));
 
-    // Initialize fence values
+    // Initialize fence values and resource states
     fence_counter = 1;
     for (UINT i = 0; i < frame_count; ++i)
     {
         fence_values[i] = 0;
+        render_target_states[i] = D3D12_RESOURCE_STATE_PRESENT;
+        command_list_in_use[i] = false;
     }
+    depth_buffer_state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 
     init_pipeline();
     load_assets();
@@ -417,13 +420,16 @@ void Renderer::begin_frame()
     {
         throw std::runtime_error("Failed to reset command list.");
     }
+
+    // Mark resources as in use
+    command_list_in_use[frame_index] = true;
 }
 
 void Renderer::populate_command_list()
 {
     ID3D12GraphicsCommandList *cmd_list = command_lists[frame_index].Get();
 
-    // Update matrices
+    // Update matrices and buffers
     camera->update();
     rotation_angle += 0.01f;
 
@@ -455,35 +461,8 @@ void Renderer::populate_command_list()
     memcpy(light_mapped, &light_data, sizeof(LightData));
     light_buffer->unmap();
 
-    cmd_list->SetGraphicsRootSignature(pipeline->get_root_signature());
-
-    ID3D12DescriptorHeap *heaps[] = {srv_heap.Get()};
-    cmd_list->SetDescriptorHeaps(1, heaps);
-
-    cmd_list->SetGraphicsRootConstantBufferView(0, camera_buffer->get_resource()->GetGPUVirtualAddress());
-    cmd_list->SetGraphicsRootConstantBufferView(1, light_buffer->get_resource()->GetGPUVirtualAddress());
-    cmd_list->SetGraphicsRootDescriptorTable(2, srv_heap->GetGPUDescriptorHandleForHeapStart());
-
-    cmd_list->RSSetViewports(1, &viewport);
-    cmd_list->RSSetScissorRects(1, &scissor_rect);
-
-    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(render_targets[frame_index].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-    cmd_list->ResourceBarrier(1, &barrier);
-
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_handle(rtv_heap->GetCPUDescriptorHandleForHeapStart(), frame_index, rtv_descriptor_size);
-    CD3DX12_CPU_DESCRIPTOR_HANDLE dsv_handle(dsv_heap->GetCPUDescriptorHandleForHeapStart());
-    cmd_list->OMSetRenderTargets(1, &rtv_handle, FALSE, &dsv_handle);
-
-    const float clear_color[] = {0.0f, 0.2f, 0.4f, 1.0f};
-    cmd_list->ClearRenderTargetView(rtv_handle, clear_color, 0, nullptr);
-    cmd_list->ClearDepthStencilView(dsv_handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-    cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    cmd_list->IASetVertexBuffers(0, 1, &vertex_buffer_view);
-    cmd_list->IASetIndexBuffer(&index_buffer_view);
-    cmd_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
-
-    barrier = CD3DX12_RESOURCE_BARRIER::Transition(render_targets[frame_index].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-    cmd_list->ResourceBarrier(1, &barrier);
+    // Execute render pass only (depth prepass disabled for debugging)
+    populate_render_pass();
 
     if (FAILED(cmd_list->Close()))
     {
@@ -491,9 +470,92 @@ void Renderer::populate_command_list()
     }
 }
 
+void Renderer::transition_resource(ID3D12GraphicsCommandList *cmd_list, ID3D12Resource *resource, D3D12_RESOURCE_STATES &current_state, D3D12_RESOURCE_STATES new_state)
+{
+    if (current_state != new_state)
+    {
+        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(resource, current_state, new_state);
+        cmd_list->ResourceBarrier(1, &barrier);
+        current_state = new_state;
+    }
+}
+
+void Renderer::populate_depth_pass()
+{
+    ID3D12GraphicsCommandList *cmd_list = command_lists[frame_index].Get();
+
+    // Explicitly transition depth buffer to DEPTH_WRITE if needed
+    transition_resource(cmd_list, depth_stencil_buffer.Get(), depth_buffer_state, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+    // Set render targets (depth only, no RTV)
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsv_handle(dsv_heap->GetCPUDescriptorHandleForHeapStart());
+    cmd_list->OMSetRenderTargets(0, nullptr, FALSE, &dsv_handle);
+
+    // Setup viewport and clear depth
+    cmd_list->RSSetViewports(1, &viewport);
+    cmd_list->RSSetScissorRects(1, &scissor_rect);
+    cmd_list->ClearDepthStencilView(dsv_handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+    // Setup depth pass rendering
+    cmd_list->SetPipelineState(pipeline->get_pipeline_state());
+    cmd_list->SetGraphicsRootSignature(pipeline->get_root_signature());
+    cmd_list->SetGraphicsRootConstantBufferView(0, camera_buffer->get_resource()->GetGPUVirtualAddress());
+
+    cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    cmd_list->IASetVertexBuffers(0, 1, &vertex_buffer_view);
+    cmd_list->IASetIndexBuffer(&index_buffer_view);
+    cmd_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
+}
+
+void Renderer::populate_render_pass()
+{
+    ID3D12GraphicsCommandList *cmd_list = command_lists[frame_index].Get();
+
+    // Explicitly transition render target to RENDER_TARGET state
+    transition_resource(cmd_list, render_targets[frame_index].Get(), render_target_states[frame_index], D3D12_RESOURCE_STATE_RENDER_TARGET);
+    
+    // Transition depth buffer to readable state for rendering
+    transition_resource(cmd_list, depth_stencil_buffer.Get(), depth_buffer_state, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+    // Set render targets with depth
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_handle(rtv_heap->GetCPUDescriptorHandleForHeapStart(), frame_index, rtv_descriptor_size);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsv_handle(dsv_heap->GetCPUDescriptorHandleForHeapStart());
+    cmd_list->OMSetRenderTargets(1, &rtv_handle, FALSE, &dsv_handle);
+    
+    // Clear depth on first render
+    cmd_list->ClearDepthStencilView(dsv_handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+    // Setup descriptor heaps
+    ID3D12DescriptorHeap *heaps[] = {srv_heap.Get()};
+    cmd_list->SetDescriptorHeaps(1, heaps);
+
+    // Clear and setup
+    const float clear_color[] = {0.0f, 0.2f, 0.4f, 1.0f};
+    cmd_list->ClearRenderTargetView(rtv_handle, clear_color, 0, nullptr);
+
+    cmd_list->RSSetViewports(1, &viewport);
+    cmd_list->RSSetScissorRects(1, &scissor_rect);
+
+    // Set pipeline state and root signature
+    cmd_list->SetPipelineState(pipeline->get_pipeline_state());
+    cmd_list->SetGraphicsRootSignature(pipeline->get_root_signature());
+    cmd_list->SetGraphicsRootConstantBufferView(0, camera_buffer->get_resource()->GetGPUVirtualAddress());
+    cmd_list->SetGraphicsRootConstantBufferView(1, light_buffer->get_resource()->GetGPUVirtualAddress());
+    cmd_list->SetGraphicsRootDescriptorTable(2, srv_heap->GetGPUDescriptorHandleForHeapStart());
+
+    // Draw
+    cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    cmd_list->IASetVertexBuffers(0, 1, &vertex_buffer_view);
+    cmd_list->IASetIndexBuffer(&index_buffer_view);
+    cmd_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
+
+    // Explicitly transition back to PRESENT state
+    transition_resource(cmd_list, render_targets[frame_index].Get(), render_target_states[frame_index], D3D12_RESOURCE_STATE_PRESENT);
+}
+
 void Renderer::end_frame()
 {
-    // Signal fence for this frame
+    // Signal fence for this frame with the value that was set in render()
     if (FAILED(command_queue->Signal(fence.Get(), fence_values[frame_index])))
     {
         throw std::runtime_error("Failed to signal fence.");
@@ -515,10 +577,15 @@ void Renderer::render()
         throw std::runtime_error("Failed to present swap chain.");
     }
 
-    // Signal fence for this frame
+    // Assign fence value before signaling
     fence_values[frame_index] = fence_counter;
-    end_frame();
     fence_counter++;
+    
+    // Signal fence for this frame
+    end_frame();
+
+    // Mark command list as no longer in use
+    command_list_in_use[frame_index] = false;
 
     // Move to next frame
     frame_index = swap_chain->GetCurrentBackBufferIndex();
