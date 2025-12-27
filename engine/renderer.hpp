@@ -59,6 +59,7 @@ private:
 
     std::unique_ptr<Camera> camera;
     std::unique_ptr<Buffer> camera_buffer;
+    std::unique_ptr<Buffer> light_buffer;
     Microsoft::WRL::ComPtr<ID3D12Resource> vertex_upload_heap;
     Microsoft::WRL::ComPtr<ID3D12Resource> index_upload_heap;
 

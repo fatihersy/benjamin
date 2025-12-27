@@ -7,6 +7,7 @@ using Microsoft::WRL::ComPtr;
 
 struct Vertex {
     XMFLOAT3 position;
+    XMFLOAT3 normal;
     XMFLOAT2 uv;
 };
 
@@ -30,6 +31,7 @@ Renderer::Renderer(UINT width, UINT height, HWND hwnd)
 
     camera = std::make_unique<Camera>(XM_PIDIV2, static_cast<float>(width) / height, 0.1f, 100.0f, 5.0f);
     camera_buffer = std::make_unique<Buffer>(device.Get(), 256, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+    light_buffer = std::make_unique<Buffer>(device.Get(), 256, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
 }
 
 Renderer::~Renderer() {
@@ -129,16 +131,21 @@ void Renderer::load_assets() {
     srv_range.RegisterSpace = 0;
     srv_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_ROOT_PARAMETER root_params[2] = {};
+    D3D12_ROOT_PARAMETER root_params[3] = {};
     root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     root_params[0].Descriptor.ShaderRegister = 0;
     root_params[0].Descriptor.RegisterSpace = 0;
     root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
-    root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    root_params[1].DescriptorTable.NumDescriptorRanges = 1;
-    root_params[1].DescriptorTable.pDescriptorRanges = &srv_range;
+    root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    root_params[1].Descriptor.ShaderRegister = 1;
+    root_params[1].Descriptor.RegisterSpace = 0;
     root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    root_params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    root_params[2].DescriptorTable.NumDescriptorRanges = 1;
+    root_params[2].DescriptorTable.pDescriptorRanges = &srv_range;
+    root_params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     D3D12_STATIC_SAMPLER_DESC sampler_desc = {};
     sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -156,7 +163,7 @@ void Renderer::load_assets() {
     sampler_desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     D3D12_ROOT_SIGNATURE_DESC root_signature_desc = {};
-    root_signature_desc.NumParameters = 2;
+    root_signature_desc.NumParameters = 3;
     root_signature_desc.pParameters = root_params;
     root_signature_desc.NumStaticSamplers = 1;
     root_signature_desc.pStaticSamplers = &sampler_desc;
@@ -164,7 +171,8 @@ void Renderer::load_assets() {
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> input_layout = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
 
     pipeline = std::make_unique<Pipeline>(device.Get(), L"C:\\Users\\supre\\Repository\\Repositories\\benjamin\\engine\\shaders.hlsl", input_layout, root_signature_desc);
@@ -174,36 +182,36 @@ void Renderer::load_assets() {
     }
 
     Vertex cube_vertices[] = {
-        // Front face (z = 0.5)
-        { { -0.5f, -0.5f,  0.5f }, { 0.0f, 1.0f } },
-        { {  0.5f, -0.5f,  0.5f }, { 1.0f, 1.0f } },
-        { {  0.5f,  0.5f,  0.5f }, { 1.0f, 0.0f } },
-        { { -0.5f,  0.5f,  0.5f }, { 0.0f, 0.0f } },
-        // Back face (z = -0.5)
-        { {  0.5f, -0.5f, -0.5f }, { 0.0f, 1.0f } },
-        { { -0.5f, -0.5f, -0.5f }, { 1.0f, 1.0f } },
-        { { -0.5f,  0.5f, -0.5f }, { 1.0f, 0.0f } },
-        { {  0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f } },
-        // Left face (x = -0.5)
-        { { -0.5f, -0.5f, -0.5f }, { 0.0f, 1.0f } },
-        { { -0.5f, -0.5f,  0.5f }, { 1.0f, 1.0f } },
-        { { -0.5f,  0.5f,  0.5f }, { 1.0f, 0.0f } },
-        { { -0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f } },
-        // Right face (x = 0.5)
-        { {  0.5f, -0.5f,  0.5f }, { 0.0f, 1.0f } },
-        { {  0.5f, -0.5f, -0.5f }, { 1.0f, 1.0f } },
-        { {  0.5f,  0.5f, -0.5f }, { 1.0f, 0.0f } },
-        { {  0.5f,  0.5f,  0.5f }, { 0.0f, 0.0f } },
-        // Top face (y = 0.5)
-        { { -0.5f,  0.5f,  0.5f }, { 0.0f, 1.0f } },
-        { {  0.5f,  0.5f,  0.5f }, { 1.0f, 1.0f } },
-        { {  0.5f,  0.5f, -0.5f }, { 1.0f, 0.0f } },
-        { { -0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f } },
-        // Bottom face (y = -0.5)
-        { { -0.5f, -0.5f, -0.5f }, { 0.0f, 1.0f } },
-        { {  0.5f, -0.5f, -0.5f }, { 1.0f, 1.0f } },
-        { {  0.5f, -0.5f,  0.5f }, { 1.0f, 0.0f } },
-        { { -0.5f, -0.5f,  0.5f }, { 0.0f, 0.0f } }
+        // Front face (z = 0.5), normal: (0, 0, 1)
+        { { -0.5f, -0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+        { {  0.5f, -0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
+        { {  0.5f,  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
+        { { -0.5f,  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
+        // Back face (z = -0.5), normal: (0, 0, -1)
+        { {  0.5f, -0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f } },
+        { { -0.5f, -0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f } },
+        { { -0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 0.0f } },
+        { {  0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f } },
+        // Left face (x = -0.5), normal: (-1, 0, 0)
+        { { -0.5f, -0.5f, -0.5f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f } },
+        { { -0.5f, -0.5f,  0.5f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f } },
+        { { -0.5f,  0.5f,  0.5f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
+        { { -0.5f,  0.5f, -0.5f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+        // Right face (x = 0.5), normal: (1, 0, 0)
+        { {  0.5f, -0.5f,  0.5f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f } },
+        { {  0.5f, -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f } },
+        { {  0.5f,  0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
+        { {  0.5f,  0.5f,  0.5f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+        // Top face (y = 0.5), normal: (0, 1, 0)
+        { { -0.5f,  0.5f,  0.5f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f } },
+        { {  0.5f,  0.5f,  0.5f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f } },
+        { {  0.5f,  0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
+        { { -0.5f,  0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
+        // Bottom face (y = -0.5), normal: (0, -1, 0)
+        { { -0.5f, -0.5f, -0.5f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 1.0f } },
+        { {  0.5f, -0.5f, -0.5f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 1.0f } },
+        { {  0.5f, -0.5f,  0.5f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 0.0f } },
+        { { -0.5f, -0.5f,  0.5f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f } }
     };
 
     UINT16 cube_indices[] = {
@@ -364,13 +372,31 @@ void Renderer::populate_command_list() {
     memcpy((char*)mapped + 2 * sizeof(XMMATRIX), &proj, sizeof(XMMATRIX));
     camera_buffer->unmap();
 
+    struct LightData {
+        XMFLOAT3 direction;
+        float intensity;
+        XMFLOAT3 color;
+        float ambient;
+    };
+
+    LightData light_data = {};
+    light_data.direction = XMFLOAT3(-0.5f, -1.0f, -0.5f);
+    light_data.intensity = 1.0f;
+    light_data.color = XMFLOAT3(1.0f, 1.0f, 1.0f);
+    light_data.ambient = 0.15f;
+
+    void* light_mapped = light_buffer->map();
+    memcpy(light_mapped, &light_data, sizeof(LightData));
+    light_buffer->unmap();
+
     command_list->SetGraphicsRootSignature(pipeline->get_root_signature());
 
     ID3D12DescriptorHeap* heaps[] = { srv_heap.Get() };
     command_list->SetDescriptorHeaps(1, heaps);
 
     command_list->SetGraphicsRootConstantBufferView(0, camera_buffer->get_resource()->GetGPUVirtualAddress());
-    command_list->SetGraphicsRootDescriptorTable(1, srv_heap->GetGPUDescriptorHandleForHeapStart());
+    command_list->SetGraphicsRootConstantBufferView(1, light_buffer->get_resource()->GetGPUVirtualAddress());
+    command_list->SetGraphicsRootDescriptorTable(2, srv_heap->GetGPUDescriptorHandleForHeapStart());
 
     command_list->RSSetViewports(1, &viewport);
     command_list->RSSetScissorRects(1, &scissor_rect);
