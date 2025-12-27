@@ -11,7 +11,8 @@
 #include "buffer.hpp"
 #include "texture.hpp"
 
-class Renderer {
+class Renderer
+{
 public:
     Renderer(UINT width, UINT height, HWND hwnd);
     ~Renderer();
@@ -22,8 +23,10 @@ public:
 private:
     void init_pipeline();
     void load_assets();
+    void begin_frame();
     void populate_command_list();
-    void wait_for_previous_frame();
+    void end_frame();
+    void wait_for_frame(UINT frame_idx);
     void create_depth_buffer();
 
     static const UINT frame_count = 2;
@@ -40,10 +43,13 @@ private:
     UINT rtv_descriptor_size;
     Microsoft::WRL::ComPtr<ID3D12Resource> render_targets[frame_count];
     Microsoft::WRL::ComPtr<ID3D12Resource> depth_stencil_buffer;
-    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> command_allocator;
-    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> command_list;
+
+    // Per-frame resources
+    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> command_allocators[frame_count];
+    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> command_lists[frame_count];
     Microsoft::WRL::ComPtr<ID3D12Fence> fence;
-    UINT64 fence_value;
+    UINT64 fence_values[frame_count];
+    UINT64 fence_counter;
     HANDLE fence_event;
     UINT frame_index;
 

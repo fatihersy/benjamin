@@ -8,6 +8,9 @@ int main() {
     } catch (const std::exception& e) {
         MessageBoxA(nullptr, e.what(), "Error", MB_OK | MB_ICONERROR);
         return 1;
+    } catch (...) {
+        MessageBoxA(nullptr, "Unknown exception occurred", "Error", MB_OK | MB_ICONERROR);
+        return 1;
     }
     return 0;
 }

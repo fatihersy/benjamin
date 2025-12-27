@@ -40,7 +40,12 @@ void Window::run() {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         } else {
-            renderer->render();
+            try {
+                renderer->render();
+            } catch (const std::exception& e) {
+                MessageBoxA(nullptr, e.what(), "Render Error", MB_OK | MB_ICONERROR);
+                break;
+            }
         }
     }
 }
